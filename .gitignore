@@ -43,7 +43,6 @@ Thumbs.db
 # Project specific
 *.pkl
 *.joblib
-*.csv
 .streamlit/
 
 # Logs

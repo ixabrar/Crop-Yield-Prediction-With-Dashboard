@@ -53,25 +53,53 @@ The dataset contains historical crop production information for Indian states in
 
 ## Installation
 
-1. Create a virtual environment:
+1. Clone the repository:
+```bash
+git clone https://github.com/ixabrar/Crop-Yield-Prediction-With-Dashboard.git
+cd crop_yield_prediction
+```
+
+2. Create a virtual environment:
 ```bash
 python -m venv crop
 ```
 
-2. Activate the virtual environment:
+3. Activate the virtual environment:
 ```bash
 # On Windows
 crop\Scripts\activate
+
+# On macOS/Linux
+source crop/bin/activate
 ```
 
-3. Install required packages:
+4. Install required packages:
 ```bash
-pip install -r requirements.txt
+pip install pandas scikit-learn joblib streamlit plotly
 ```
+
+## Setup - Generate Models
+
+Before running the application, you need to generate the trained models using the setup script:
+
+```bash
+python setup.py
+```
+
+This script will:
+- Load the crop yield dataset
+- Clean and normalize categorical data
+- Train regression models for yield prediction
+- Train classification models for yield categorization
+- Save all models, scalers, and encoders as `.pkl` files
+
+The process takes a few minutes to complete. You will see progress logs for each model training step.
 
 ## Usage
 
 ### Run the Web Application
+
+After models are generated, launch the Streamlit application:
 
 ```bash
 streamlit run app.py
@@ -79,21 +107,31 @@ streamlit run app.py
 
 The application will open in your default browser at http://localhost:8501
 
-### Train the Model
+After models are generated, launch the Streamlit application:
+
+```bash
+streamlit run app.py
+```
+
+The application will open in your default browser at http://localhost:8501
+
+### Advanced - Training Script
+
+You can also use an alternative training script that provides detailed logging:
 
 ```bash
 python modeltrain.py
 ```
 
-This will train and evaluate the prediction models using the dataset.
+This script is equivalent to `setup.py` but with additional verbose output.
 
-### Verify Results
+## Project Files
 
-```bash
-python verifyresult.py
-```
-
-This script validates the model predictions against test data.
+- `setup.py` - Main setup script to generate all models (run this first after installation)
+- `app.py` - Streamlit web application for interactive predictions
+- `modeltrain.py` - Detailed model training script with extensive logging
+- `verifyresult.py` - Script to verify model performance on test data
+- `crop_yield_pred.ipynb` - Jupyter notebook with exploratory data analysis
 
 ## Model Approaches
 

@@ -47,3 +47,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Dataset
+crop-yield-in-indian-states-dataset.zip

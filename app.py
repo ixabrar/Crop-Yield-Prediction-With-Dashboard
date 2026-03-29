@@ -5,6 +5,38 @@ import plotly.express as px
 import plotly.graph_objects as go
 import hashlib
 from datetime import datetime
+import os
+import subprocess
+
+# =====================================================
+# AUTO-GENERATE MODELS ON FIRST RUN
+# =====================================================
+def ensure_models_exist():
+    """Generate model files if they don't exist"""
+    model_files = [
+        "best_reg_model.pkl",
+        "best_classification_model.pkl",
+        "scaler_reg.pkl",
+        "le_item.pkl",
+        "le_state.pkl",
+        "le_season.pkl"
+    ]
+    
+    if all(os.path.exists(f) for f in model_files):
+        return  # All models exist, skip
+    
+    st.info("🔧 Generating ML models on first run... This may take 2-3 minutes.")
+    try:
+        result = subprocess.run(["python", "setup.py"], capture_output=True, text=True)
+        if result.returncode != 0:
+            st.error(f"Error generating models: {result.stderr}")
+            raise Exception("Model generation failed")
+        st.success("✅ Models generated successfully!")
+    except Exception as e:
+        st.error(f"Failed to generate models: {str(e)}")
+        raise
+
+ensure_models_exist()
 
 # =====================================================
 # PAGE CONFIG

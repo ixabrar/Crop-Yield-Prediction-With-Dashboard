@@ -7,6 +7,7 @@ import hashlib
 from datetime import datetime
 import os
 import subprocess
+import sys
 
 # =====================================================
 # AUTO-GENERATE MODELS ON FIRST RUN
@@ -23,20 +24,28 @@ def ensure_models_exist():
     ]
     
     if all(os.path.exists(f) for f in model_files):
-        return  # All models exist, skip
+        return True  # All models exist, skip
     
-    st.info("🔧 Generating ML models on first run... This may take 2-3 minutes.")
+    st.info("🔧 Generating ML models on first run... This may take 3-5 minutes.")
     try:
-        result = subprocess.run(["python", "setup.py"], capture_output=True, text=True)
+        # Use sys.executable to ensure correct Python interpreter
+        result = subprocess.run(
+            [sys.executable, "setup.py"],
+            capture_output=True,
+            text=True,
+            cwd=os.getcwd()
+        )
         if result.returncode != 0:
-            st.error(f"Error generating models: {result.stderr}")
-            raise Exception("Model generation failed")
-        st.success("✅ Models generated successfully!")
+            st.error("❌ Model generation failed!")
+            st.error(f"**Error Output:**\n```\n{result.stderr}\n```")
+            st.info("**Troubleshooting:** Check that the dataset file `crop_yield.csv` exists in `crop-yield-in-indian-states-dataset/`")
+            return False
+        st.success("✅ Models generated successfully! Reloading...")
+        st.rerun()
     except Exception as e:
-        st.error(f"Failed to generate models: {str(e)}")
-        raise
-
-ensure_models_exist()
+        st.error(f"❌ Failed to generate models: {str(e)}")
+        return False
+    return True
 
 # =====================================================
 # PAGE CONFIG
@@ -703,6 +712,10 @@ def main():
     if not st.session_state["authenticated"]:
         login_page()
         return
+
+    # Ensure models exist before loading
+    if not ensure_models_exist():
+        st.stop()
 
     reg_model, clf_model, scaler, le_state, le_crop, df = load_all()
 

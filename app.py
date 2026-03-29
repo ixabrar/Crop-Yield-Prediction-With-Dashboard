@@ -8,6 +8,9 @@ from datetime import datetime
 import os
 import subprocess
 import sys
+import json
+import re
+from pathlib import Path
 
 # =====================================================
 # AUTO-GENERATE MODELS ON FIRST RUN
@@ -46,6 +49,79 @@ def ensure_models_exist():
         st.error(f"❌ Failed to generate models: {str(e)}")
         return False
     return True
+
+# =====================================================
+# USER AUTHENTICATION SYSTEM
+# =====================================================
+USERS_FILE = "users.json"
+
+def load_users():
+    """Load users from JSON file"""
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_users(users):
+    """Save users to JSON file"""
+    with open(USERS_FILE, "w") as f:
+        json.dump(users, f, indent=2)
+
+def hash_password(password):
+    """Hash password using SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def is_valid_email(email):
+    """Validate email format"""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+def is_valid_password(password):
+    """Validate password strength"""
+    if len(password) < 6:
+        return False, "Password must be at least 6 characters"
+    return True, "Valid"
+
+def register_user(email, password):
+    """Register a new user"""
+    # Validate email
+    if not is_valid_email(email):
+        return False, "❌ Please enter a valid email address"
+    
+    # Validate password
+    valid, msg = is_valid_password(password)
+    if not valid:
+        return False, f"❌ {msg}"
+    
+    users = load_users()
+    
+    # Check if user already exists
+    if email in users:
+        return False, "❌ Email already registered. Try logging in instead."
+    
+    # Register new user
+    users[email] = {
+        "password_hash": hash_password(password),
+        "created_at": datetime.now().isoformat(),
+        "name": email.split("@")[0]  # Use part before @ as display name
+    }
+    save_users(users)
+    return True, "✅ Account created successfully! Please log in."
+
+def authenticate_user(email, password):
+    """Authenticate user with email and password"""
+    users = load_users()
+    
+    if email not in users:
+        return False, "❌ Email not found. Please sign up first."
+    
+    stored_hash = users[email]["password_hash"]
+    provided_hash = hash_password(password)
+    
+    if stored_hash == provided_hash:
+        return True, users[email]["name"]
+    else:
+        return False, "❌ Incorrect password. Please try again."
 
 # =====================================================
 # PAGE CONFIG
@@ -590,20 +666,8 @@ def get_rainfall_zone(rainfall):
 
 
 # =====================================================
-# AUTHENTICATION
+# LOGIN PAGE
 # =====================================================
-USERS_DB = {
-    "admin": hashlib.sha256("admin123".encode()).hexdigest(),
-    "farmer": hashlib.sha256("crop2026".encode()).hexdigest(),
-    "demo": hashlib.sha256("demo".encode()).hexdigest(),
-}
-
-
-def check_login(username, password):
-    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
-    return USERS_DB.get(username.lower()) == pwd_hash
-
-
 def login_page():
     inject_css()
 
@@ -637,34 +701,62 @@ def login_page():
             unsafe_allow_html=True,
         )
 
-        # Form inputs
-        username = st.text_input("Username", placeholder="e.g. admin")
-        password = st.text_input("Password", type="password", placeholder="Enter password")
+        # Tabs for Sign In and Sign Up
+        tab1, tab2 = st.tabs(["🔓 Sign In", "✍️ Sign Up"])
 
-        st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
+        # ==================== SIGN IN TAB ====================
+        with tab1:
+            st.markdown("### Welcome Back!")
+            
+            email = st.text_input("Email", placeholder="your@email.com", key="signin_email")
+            password = st.text_input("Password", type="password", placeholder="Enter password", key="signin_pwd")
 
-        col_btn, col_info = st.columns([1.5, 1])
-        with col_btn:
-            login_clicked = st.button("Sign In", width="stretch")
-        with col_info:
-            with st.popover("Demo Accounts"):
-                st.markdown(
-                    "| Username | Password |\n"
-                    "|----------|----------|\n"
-                    "| `admin` | `admin123` |\n"
-                    "| `farmer` | `crop2026` |\n"
-                    "| `demo` | `demo` |"
-                )
+            st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
-        if login_clicked:
-            if check_login(username, password):
-                st.session_state["authenticated"] = True
-                st.session_state["username"] = username
-                st.rerun()
-            else:
-                st.error("Invalid credentials. Please try again.")
+            if st.button("Sign In", width="stretch", key="btn_signin"):
+                if not email or not password:
+                    st.error("❌ Please enter both email and password")
+                else:
+                    auth_success, auth_msg = authenticate_user(email, password)
+                    if auth_success:
+                        st.session_state["authenticated"] = True
+                        st.session_state["username"] = auth_msg
+                        st.session_state["email"] = email
+                        st.success(f"✅ Welcome {auth_msg}!")
+                        st.rerun()
+                    else:
+                        st.error(auth_msg)
+
+        # ==================== SIGN UP TAB ====================
+        with tab2:
+            st.markdown("### Create New Account")
+            
+            signup_email = st.text_input("Email", placeholder="your@email.com", key="signup_email")
+            signup_pwd = st.text_input("Password", type="password", placeholder="Min 6 characters", key="signup_pwd")
+            signup_pwd_confirm = st.text_input("Confirm Password", type="password", placeholder="Repeat password", key="signup_confirm")
+
+            st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+
+            if st.button("Create Account", width="stretch", key="btn_signup"):
+                if not signup_email or not signup_pwd or not signup_pwd_confirm:
+                    st.error("❌ Please fill in all fields")
+                elif signup_pwd != signup_pwd_confirm:
+                    st.error("❌ Passwords do not match")
+                else:
+                    reg_success, reg_msg = register_user(signup_email, signup_pwd)
+                    if reg_success:
+                        st.success(reg_msg)
+                        st.info("Now switch to **Sign In** tab to log in with your new account")
+                    else:
+                        st.error(reg_msg)
+
+            st.markdown("---")
+            st.markdown("**Password Requirements:**")
+            st.caption("• At least 6 characters")
+            st.caption("• Valid email format (e.g., user@example.com)")
 
         # Feature icons row
+        st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
         st.markdown(
             '<div class="login-features">'
             '<div class="login-feat-item"><div class="feat-icon">&#128202;</div><div class="feat-label">Analytics</div></div>'
@@ -680,6 +772,7 @@ def login_page():
             '<div class="login-footer"><p>CropVision v2.0 &bull; 2026 AgriTech</p></div>',
             unsafe_allow_html=True,
         )
+
 
 
 # =====================================================
